@@ -28,6 +28,7 @@ jobs:
 
       - run: npm run build
         env:
+          VITE_BASE_URL: /idea3d/
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 

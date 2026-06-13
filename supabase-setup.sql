@@ -1,15 +1,15 @@
--- SQL para configurar o Supabase
+-- SQL idempotente para configurar o Supabase (pode rodar múltiplas vezes)
 -- Execute no SQL Editor do Supabase
 
 -- Tabela de cores
-CREATE TABLE colors (
+CREATE TABLE IF NOT EXISTS colors (
   id SERIAL PRIMARY KEY,
   name TEXT UNIQUE NOT NULL,
   code TEXT UNIQUE NOT NULL
 );
 
 -- Tabela de produtos
-CREATE TABLE products (
+CREATE TABLE IF NOT EXISTS products (
   id SERIAL PRIMARY KEY,
   sku TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE products (
 );
 
 -- Tabela de pedidos
-CREATE TABLE orders (
+CREATE TABLE IF NOT EXISTS orders (
   id SERIAL PRIMARY KEY,
   customer_name TEXT NOT NULL,
   customer_email TEXT NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE orders (
 );
 
 -- Itens do pedido
-CREATE TABLE order_items (
+CREATE TABLE IF NOT EXISTS order_items (
   id SERIAL PRIMARY KEY,
   order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
   product_sku TEXT NOT NULL,
@@ -54,7 +54,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Inserir cores
+-- Inserir cores (ignora se já existirem)
 INSERT INTO colors (name, code) VALUES
   ('Preta', 'BK'), ('Branca', 'WH'), ('Vermelha', 'RD'), ('Azul', 'BL'),
   ('Verde', 'GN'), ('Amarela', 'YL'), ('Rosa', 'PK'), ('Cinza', 'GY'),
@@ -62,7 +62,7 @@ INSERT INTO colors (name, code) VALUES
   ('Prata', 'SL'), ('Dourada', 'GD'), ('Transparente', 'TR')
 ON CONFLICT (code) DO NOTHING;
 
--- Inserir produtos
+-- Inserir produtos (ignora se já existirem)
 INSERT INTO products (sku, name, model_number, color_id, price, stock, category) VALUES
   ('SKU-GB01WH', 'Gancho Box', '1.0', (SELECT id FROM colors WHERE code = 'WH'), 20, 2, 'Organizadores'),
   ('SKU-GB01BK', 'Gancho Box', '1.0', (SELECT id FROM colors WHERE code = 'BK'), 20, 2, 'Organizadores'),
@@ -77,15 +77,19 @@ INSERT INTO products (sku, name, model_number, color_id, price, stock, category)
   ('SKU-CG01BK-SK', 'Caixa Grande SILK', '1.0', (SELECT id FROM colors WHERE code = 'BK'), 60, 0, 'Organizadores')
 ON CONFLICT (sku) DO NOTHING;
 
--- RLS: permitir leitura anônima dos produtos
+-- RLS: produtos
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "produtos_leitura_anon" ON products;
 CREATE POLICY "produtos_leitura_anon" ON products FOR SELECT TO anon USING (true);
 
--- RLS: permitir inserção anônima de pedidos
+-- RLS: pedidos
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "pedidos_insert_anon" ON orders;
+DROP POLICY IF EXISTS "pedidos_select_anon" ON orders;
 CREATE POLICY "pedidos_insert_anon" ON orders FOR INSERT TO anon WITH CHECK (true);
 CREATE POLICY "pedidos_select_anon" ON orders FOR SELECT TO anon USING (true);
 
--- RLS: permitir inserção anônima de itens
+-- RLS: itens
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "itens_insert_anon" ON order_items;
 CREATE POLICY "itens_insert_anon" ON order_items FOR INSERT TO anon WITH CHECK (true);
