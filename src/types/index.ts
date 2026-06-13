@@ -38,3 +38,13 @@ export interface Order {
   status: string;
   created_at: string;
 }
+
+export interface ProductFormData {
+  sku: string;
+  name: string;
+  category: string;
+  price: number;
+  stock: number;
+  color_id: number;
+  image: string;
+}

@@ -1,54 +1,51 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./lib/supabase";
-import { ShoppingCart, X, Plus, Minus, Check, Package, Truck, MapPin, ChevronRight, Star, Sparkles } from "lucide-react";
-import type { Product, CartItem } from "./types";
+import { ShoppingCart, X, Plus, Minus, Check, Package, Truck, MapPin, ChevronRight, Star, Sparkles, Shield, ShieldOff, Pencil, Trash2, Plus as PlusIcon } from "lucide-react";
+import type { Product, CartItem, ProductFormData } from "./types";
 import { FALLBACK_PRODUCTS } from "./data/products";
+import { useCart } from "./hooks/useCart";
+import Modal from "./components/ui/Modal";
+import AdminLogin from "./components/admin/AdminLogin";
+import ProductForm from "./components/admin/ProductForm";
+import DeleteConfirm from "./components/admin/DeleteConfirm";
+
+const COLOR_MAP: Record<string, string> = {
+  Preta: "#1f2937", Branca: "#f9fafb", Vermelha: "#ef4444", Azul: "#3b82f6",
+  Verde: "#22c55e", Amarela: "#eab308", Rosa: "#ec4899", Cinza: "#9ca3af",
+  Laranja: "#f97316", Marrom: "#78350f", Bege: "#d6a354", Roxa: "#a855f7",
+  Prata: "#cbd5e1", Dourada: "#f59e0b", Transparente: "#e5e7eb",
+};
 
 function getColorHex(name: string): string {
-  const map: Record<string, string> = {
-    Preta: "#1f2937", Branca: "#f9fafb", Vermelha: "#ef4444", Azul: "#3b82f6",
-    Verde: "#22c55e", Amarela: "#eab308", Rosa: "#ec4899", Cinza: "#9ca3af",
-    Laranja: "#f97316", Marrom: "#78350f", Bege: "#d6a354", Roxa: "#a855f7",
-    Prata: "#cbd5e1", Dourada: "#f59e0b", Transparente: "#e5e7eb",
-  };
-  return map[name] || "#e5e7eb";
+  return COLOR_MAP[name] || "#e5e7eb";
 }
 
 function formatPrice(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function useCart() {
-  const [items, setItems] = useState<CartItem[]>(() => {
-    try { return JSON.parse(localStorage.getItem("cart") || "[]"); } catch { return []; }
-  });
-  useEffect(() => { localStorage.setItem("cart", JSON.stringify(items)); }, [items]);
-  const add = (i: CartItem) => setItems((prev) => {
-    const ex = prev.find((x) => x.sku === i.sku);
-    return ex ? prev.map((x) => x.sku === i.sku ? { ...x, quantity: x.quantity + 1 } : x) : [...prev, i];
-  });
-  const remove = (sku: string) => setItems((prev) => prev.filter((x) => x.sku !== sku));
-  const update = (sku: string, q: number) => setItems((prev) => q <= 0 ? prev.filter((x) => x.sku !== sku) : prev.map((x) => x.sku === sku ? { ...x, quantity: q } : x));
-  const clear = () => setItems([]);
-  const total = items.reduce((s, i) => s + i.price * i.quantity, 0);
-  const count = items.reduce((s, i) => s + i.quantity, 0);
-  return { items, add, remove, update, clear, total, count };
-}
-
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [colors, setColors] = useState<{ id: number; name: string; code: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [cartOpen, setCartOpen] = useState(false);
   const [view, setView] = useState<"catalog" | "checkout" | "confirm">("catalog");
   const [lastOrder, setLastOrder] = useState<number | null>(null);
   const cart = useCart();
+  const [admin, setAdmin] = useState(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
 
   const [form, setForm] = useState({
     name: "", email: "", phone: "", address: "", delivery: "retirada" as "retirada" | "frete", notes: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [savingProduct, setSavingProduct] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
+  function loadProducts() {
     supabase
       .from("products")
       .select("*, color:colors(*)")
@@ -58,7 +55,6 @@ export default function App() {
         if (data && data.length > 0) {
           setProducts(data as unknown as Product[]);
         } else {
-          // Fallback: usar dados locais quando Supabase não tem tabelas
           setProducts(FALLBACK_PRODUCTS);
         }
         setLoading(false);
@@ -67,7 +63,15 @@ export default function App() {
         setProducts(FALLBACK_PRODUCTS);
         setLoading(false);
       });
-  }, []);
+  }
+
+  function loadColors() {
+    supabase.from("colors").select("*").order("id").then(({ data }) => {
+      if (data && data.length > 0) setColors(data);
+    }).catch(() => {});
+  }
+
+  useEffect(() => { loadProducts(); loadColors(); }, []);
 
   const categories = [...new Set(products.map((p) => p.category).filter(Boolean))] as string[];
 
@@ -124,6 +128,45 @@ export default function App() {
     setSubmitting(false);
   }
 
+  // ─── Admin CRUD ───
+  async function handleSaveProduct(data: ProductFormData) {
+    setSavingProduct(true);
+    const p = { ...data, model_number: "1.0" };
+    try {
+      if (editingProduct) {
+        const { error } = await supabase.from("products").update(p).eq("sku", data.sku);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("products").insert(p);
+        if (error) throw error;
+      }
+      setShowProductForm(false);
+      setEditingProduct(null);
+      loadProducts();
+    } catch {
+      const key = `local_products_${data.sku}`;
+      localStorage.setItem(key, JSON.stringify(p));
+      setShowProductForm(false);
+      setEditingProduct(null);
+      loadProducts();
+    }
+    setSavingProduct(false);
+  }
+
+  async function handleDeleteProduct() {
+    if (!deletingProduct) return;
+    setDeleting(true);
+    try {
+      const { error } = await supabase.from("products").delete().eq("sku", deletingProduct.sku);
+      if (error) throw error;
+    } catch {
+      localStorage.setItem(`local_products_${deletingProduct.sku}_deleted`, "1");
+    }
+    setDeletingProduct(null);
+    setDeleting(false);
+    loadProducts();
+  }
+
   const categoryIcons: Record<string, string> = {
     Organizadores: "🗂️",
     Utilitários: "🔧",
@@ -171,18 +214,30 @@ export default function App() {
             </div>
           </button>
 
-          <button
-            onClick={() => setCartOpen(true)}
-            className="relative p-2.5 rounded-xl text-[#a3a3a3] hover:text-[#f97316] hover:bg-[#2d2d2d] transition-all duration-200"
-            id="header-cart-btn"
-          >
-            <ShoppingCart className="h-5 w-5" />
-            {cart.count > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-[#f97316] to-[#ea580c] text-[10px] font-bold text-white shadow-lg shadow-orange-500/30 animate-pulse-glow">
-                {cart.count > 99 ? "99+" : cart.count}
-              </span>
-            )}
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => admin ? (setAdmin(false), setShowProductForm(false), setEditingProduct(null)) : setShowAdminLogin(true)}
+              className={`p-2.5 rounded-xl transition-all duration-200 ${
+                admin ? "text-[#f97316] bg-[#f97316]/10" : "text-[#a3a3a3] hover:text-[#f97316] hover:bg-[#2d2d2d]"
+              }`}
+              id="header-admin-btn"
+              title={admin ? "Sair do modo admin" : "Modo admin"}
+            >
+              {admin ? <ShieldOff className="h-5 w-5" /> : <Shield className="h-5 w-5" />}
+            </button>
+            <button
+              onClick={() => setCartOpen(true)}
+              className="relative p-2.5 rounded-xl text-[#a3a3a3] hover:text-[#f97316] hover:bg-[#2d2d2d] transition-all duration-200"
+              id="header-cart-btn"
+            >
+              <ShoppingCart className="h-5 w-5" />
+              {cart.count > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-[#f97316] to-[#ea580c] text-[10px] font-bold text-white shadow-lg shadow-orange-500/30 animate-pulse-glow">
+                  {cart.count > 99 ? "99+" : cart.count}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -275,6 +330,18 @@ export default function App() {
                     </span>
                   </div>
 
+                  {admin && (
+                    <div className="mb-4">
+                      <button
+                        onClick={() => { setEditingProduct(null); setShowProductForm(true); }}
+                        className="btn-primary rounded-xl px-4 py-2 text-xs inline-flex items-center gap-1.5"
+                      >
+                        <PlusIcon className="h-3.5 w-3.5" />
+                        <span>Adicionar Produto</span>
+                      </button>
+                    </div>
+                  )}
+
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {products.filter((p) => p.category === cat).map((p, pIdx) => (
                       <div
@@ -312,6 +379,24 @@ export default function App() {
                               <span className="bg-[#f97316]/90 text-white text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-sm">
                                 Últimas {p.stock}!
                               </span>
+                            </div>
+                          )}
+                          {admin && (
+                            <div className="absolute top-3 left-3 flex gap-1">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEditingProduct(p); setShowProductForm(true); }}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1a1a1a]/80 backdrop-blur-sm border border-[#404040] text-[#a3a3a3] hover:text-[#f97316] hover:border-[#f97316]/50 transition-colors"
+                                title="Editar"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setDeletingProduct(p); }}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1a1a1a]/80 backdrop-blur-sm border border-[#404040] text-[#a3a3a3] hover:text-[#ef4444] hover:border-[#ef4444]/50 transition-colors"
+                                title="Excluir"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
                             </div>
                           )}
                         </div>
@@ -600,6 +685,31 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* ═══════════ ADMIN MODALS ═══════════ */}
+      <Modal open={showAdminLogin} onClose={() => setShowAdminLogin(false)} title="Admin">
+        <AdminLogin onLogin={() => { setAdmin(true); setShowAdminLogin(false); }} />
+      </Modal>
+
+      <Modal open={showProductForm} onClose={() => { setShowProductForm(false); setEditingProduct(null); }} title={editingProduct ? "Editar Produto" : "Novo Produto"}>
+        <ProductForm
+          product={editingProduct || undefined}
+          colors={colors.length > 0 ? colors : FALLBACK_PRODUCTS.map((p) => p.color).filter((c, i, a) => a.findIndex((x) => x.id === c.id) === i)}
+          onSubmit={handleSaveProduct}
+          onCancel={() => { setShowProductForm(false); setEditingProduct(null); }}
+        />
+      </Modal>
+
+      <Modal open={!!deletingProduct} onClose={() => setDeletingProduct(null)} title="Excluir Produto">
+        {deletingProduct && (
+          <DeleteConfirm
+            product={deletingProduct}
+            onConfirm={handleDeleteProduct}
+            onCancel={() => setDeletingProduct(null)}
+            loading={deleting}
+          />
+        )}
+      </Modal>
     </div>
   );
 }
