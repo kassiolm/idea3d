@@ -5,24 +5,25 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 
 const client = supabaseUrl ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
-function noopQuery() {
-  return Promise.resolve({ data: null, error: new Error("Supabase não configurado") });
+function noopResolve(data: any = null) {
+  return Promise.resolve({ data, error: null });
 }
 
-function noopInsert() {
-  return { select: () => ({ single: () => Promise.resolve({ data: null, error: new Error("Supabase não configurado") }) }) };
-}
-
-function noopRpc() {
-  return Promise.resolve({ data: null, error: new Error("Supabase não configurado") });
+function chainable() {
+  const ch: any = {
+    select: () => ch,
+    order: () => ch,
+    eq: () => ch,
+    single: () => noopResolve(null),
+    then: (cb: any) => noopResolve(null).then(cb),
+    insert: () => ch,
+    update: () => ch,
+    delete: () => ch,
+  };
+  return ch;
 }
 
 export const supabase = client || {
-  from: () => ({
-    select: () => ({ then: (cb: any) => noopQuery().then(cb), order: () => ({ then: (cb: any) => noopQuery().then(cb) }) }),
-    insert: () => noopInsert(),
-    delete: () => ({ eq: () => ({ then: (cb: any) => Promise.resolve({ error: null }).then(cb) }) }),
-    update: () => ({ eq: () => ({ then: (cb: any) => Promise.resolve({ error: null }).then(cb) }) }),
-  }),
-  rpc: () => noopRpc(),
+  from: () => chainable(),
+  rpc: () => noopResolve(null),
 };
