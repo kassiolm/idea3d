@@ -69,3 +69,10 @@ CREATE TABLE orders (
 );
 
 ALTER TABLE orders DISABLE ROW LEVEL SECURITY;
+
+-- Permissões para a role anônima (usada pela chave anon do cliente)
+GRANT ALL ON products TO anon;
+GRANT ALL ON colors TO anon;
+GRANT ALL ON categories TO anon;
+GRANT ALL ON materials TO anon;
+GRANT ALL ON orders TO anon;
