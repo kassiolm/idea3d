@@ -105,13 +105,6 @@ export default function ProductForm({ product, colors, categories, products = []
     } else {
       const c = colors.find((co) => co.id === colorId);
       if (c) {
-        const h = (c as any).hexes as string[] | undefined;
-        if (slotIdx === 0 && h && h.length >= 2) {
-          const newCols = h.map((hex: string) => ({ id: c.id, name: c.name, hex }));
-          next[i] = syncVariant({ ...next[i], colors: newCols });
-          setVariants(next);
-          return;
-        }
         if (slotIdx < cols.length) cols[slotIdx] = colorEntry(c);
         else cols.push(colorEntry(c));
         if (slotIdx === 0) autoFillSlots(cols, colorId);
