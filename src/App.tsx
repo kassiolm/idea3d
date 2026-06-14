@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { ShoppingCart, X, Plus, Minus, Check, Package, Truck, MapPin, ChevronLeft, ChevronRight, Star, Sparkles, Shield, ShieldOff, Pencil, Trash2, Plus as PlusIcon } from "lucide-react";
 import type { Product, CartItem, ProductFormData } from "./types";
-import { FALLBACK_PRODUCTS } from "./data/products";
 import { useCart } from "./hooks/useCart";
 
 const BASE = import.meta.env.BASE_URL || "/";
@@ -13,20 +12,7 @@ import CategoryColorForm from "./components/admin/CategoryColorForm";
 import ImageSlider from "./components/ui/ImageSlider";
 import { fetchProducts, saveProduct as dbSaveProduct, deleteProduct as dbDeleteProduct, fetchColors, saveColors as dbSaveColors, fetchCategories, saveCategories as dbSaveCategories, fetchMaterials, saveMaterials as dbSaveMaterials, getOrders, saveOrder as dbSaveOrder, updateOrders as dbUpdateOrders } from "./lib/db";
 
-const COLOR_MAP: Record<string, string> = {
-  Preta: "#1f2937", Branca: "#f9fafb", Vermelha: "#ef4444", Azul: "#3b82f6",
-  Verde: "#22c55e", Amarela: "#eab308", Rosa: "#ec4899", Cinza: "#9ca3af",
-  Laranja: "#f97316", Marrom: "#78350f", Bege: "#d6a354", Roxa: "#a855f7",
-  Prata: "#cbd5e1", Dourada: "#f59e0b", Transparente: "#e5e7eb",
-};
-
-let managedHexMap = { ...COLOR_MAP };
-function hexFromLocal(name: string): string | undefined {
-  try {
-    const cols = JSON.parse(localStorage.getItem("local_colors") || "[]");
-    return cols.find((c: any) => c.name === name)?.hex || COLOR_MAP[name];
-  } catch { return COLOR_MAP[name]; }
-}
+let managedHexMap: Record<string, string> = {};
 
 function swatchStyle(colors: { hex: string }[] | undefined, fallback: string): React.CSSProperties {
   if (colors && colors.length >= 2) {
@@ -54,7 +40,7 @@ function toImageUrl(url: string | null | undefined): string {
 }
 
 function getColorHex(name: string, fallback = "#e5e7eb"): string {
-  return managedHexMap[name] || COLOR_MAP[name] || fallback;
+  return managedHexMap[name] || fallback;
 }
 
 function formatPrice(v: number) {
@@ -75,9 +61,7 @@ export default function App() {
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
-  const [managedCategories, setManagedCategories] = useState<string[]>(() => {
-    try { const c = JSON.parse(localStorage.getItem("local_categories") || "[]"); return c.length > 0 ? c.map((x: any) => x.name || x) : []; } catch { return []; }
-  });
+  const [managedCategories, setManagedCategories] = useState<string[]>([]);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [showColorForm, setShowColorForm] = useState(false);
   const [showMaterialForm, setShowMaterialForm] = useState(false);
@@ -100,134 +84,35 @@ export default function App() {
 
   async function loadProducts() {
     const fromRemote = await fetchProducts();
-    const locals = getLocalProducts();
     if (fromRemote.length > 0) {
-      const merged = fromRemote.map((p) => {
-        const lp = locals.find((l) => l.sku === p.sku);
-        return lp || p;
-      });
-      for (const l of locals) {
-        if (!merged.find((m) => m.sku === l.sku)) merged.push(l);
-      }
-      setProducts(merged);
-    } else {
-      setProducts(mergeLocal(FALLBACK_PRODUCTS, locals));
+      setProducts(fromRemote);
     }
     setLoading(false);
-  }
-
-  function getLocalProducts(): Product[] {
-    const result: Product[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith("local_products_") && !key.endsWith("_deleted")) {
-        try {
-          const p = JSON.parse(localStorage.getItem(key)!);
-          if (p && p.sku) {
-            // normalize color shape from old saved variant products
-            if (p.variants && p.color && p.color.colorName && !p.color.name) {
-              p.color = { id: p.color.colorId, name: p.color.colorName, code: p.color.colorCode, hex: p.color.colorHex };
-            }
-            if (p.variants) {
-              try {
-                const savedColors = JSON.parse(localStorage.getItem("local_colors") || "[]");
-                const colorMap = new Map(savedColors.map((c: any) => [c.name, c.hex]));
-                p.variants = p.variants.map((v: any) => ({
-                  ...v,
-                  colorHex: v.colorHex || colorMap.get(v.colorName) || COLOR_MAP[v.colorName] || undefined,
-                  images: v.images || (v.image ? [v.image] : []),
-                  colors: v.colors?.length ? v.colors.map((c: any) => ({ ...c, hex: c.hex || colorMap.get(c.name) || COLOR_MAP[c.name] || "#e5e7eb" })) : undefined,
-                }));
-              } catch {
-                p.variants = p.variants.map((v: any) => ({
-                  ...v,
-                  colorHex: v.colorHex || COLOR_MAP[v.colorName] || undefined,
-                  images: v.images || (v.image ? [v.image] : []),
-                  colors: v.colors?.length ? v.colors.map((c: any) => ({ ...c, hex: c.hex || COLOR_MAP[c.name] || "#e5e7eb" })) : undefined,
-                }));
-              }
-              if (!(p.images?.filter(Boolean) as string[] | undefined)?.length) {
-                p.images = p.variants.flatMap((v: any) => v.images?.filter(Boolean) || []);
-              }
-            }
-            result.push(p);
-          }
-        } catch {}
-      }
-    }
-    return result;
-  }
-
-  function mergeLocal(base: Product[], local: Product[]): Product[] {
-    const deleted = new Set<string>();
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith("local_products_") && key.endsWith("_deleted")) {
-        deleted.add(key.replace("local_products_", "").replace("_deleted", ""));
-      }
-    }
-    const localBySku = new Map<string, Product>();
-    for (const p of local) localBySku.set(p.sku, p);
-    return base
-      .filter((p) => !deleted.has(p.sku) && !localBySku.has(p.sku))
-      .concat(local.filter((p) => !deleted.has(p.sku)));
   }
 
   async function loadColors() {
     const fromRemote = await fetchColors();
     if (fromRemote.length > 0) {
-      const mapped = fromRemote.map((c: any) => ({ ...c, hex: c.hex || COLOR_MAP[c.name] || "#e5e7eb" }));
-      setColors(mapped);
-      for (const c of mapped) managedHexMap[c.name] = c.hex;
-      return;
+      setColors(fromRemote);
+      for (const c of fromRemote) if (c.hex) managedHexMap[c.name] = c.hex;
     }
-    const saved = JSON.parse(localStorage.getItem("local_colors") || "[]");
-    if (saved.length > 0) {
-      const mapped = saved.map((c: any) => ({ ...c, hex: c.hex || COLOR_MAP[c.name] || "#e5e7eb" }));
-      setColors(mapped);
-      for (const c of mapped) managedHexMap[c.name] = c.hex;
-      return;
-    }
-    const defaults = [
-      { id: 1, name: "Preta", code: "BK", hex: "#1f2937" }, { id: 2, name: "Branca", code: "WH", hex: "#f9fafb" },
-      { id: 3, name: "Vermelha", code: "RD", hex: "#ef4444" }, { id: 4, name: "Azul", code: "BL", hex: "#3b82f6" },
-      { id: 5, name: "Verde", code: "GN", hex: "#22c55e" }, { id: 6, name: "Amarela", code: "YL", hex: "#eab308" },
-      { id: 7, name: "Rosa", code: "PK", hex: "#ec4899" }, { id: 8, name: "Cinza", code: "GY", hex: "#9ca3af" },
-      { id: 9, name: "Laranja", code: "OR", hex: "#f97316" }, { id: 10, name: "Marrom", code: "BR", hex: "#78350f" },
-      { id: 11, name: "Bege", code: "BG", hex: "#d6a354" }, { id: 12, name: "Roxa", code: "PL", hex: "#a855f7" },
-      { id: 13, name: "Prata", code: "SL", hex: "#cbd5e1" }, { id: 14, name: "Dourada", code: "GD", hex: "#f59e0b" },
-      { id: 15, name: "Transparente", code: "TR", hex: "#e5e7eb" },
-    ];
-    setColors(defaults);
-    for (const c of defaults) managedHexMap[c.name] = c.hex;
   }
 
   async function loadCategories() {
-    const saved = JSON.parse(localStorage.getItem("local_categories") || "[]");
-    if (saved.length > 0) {
-      setManagedCategories(saved.map((x: any) => x.name || x));
-    } else {
-      setManagedCategories(["Organizadores", "Utilitários", "Acessórios", "Decoração"]);
-    }
     const fromRemote = await fetchCategories();
     if (fromRemote.length > 0) {
       setManagedCategories(fromRemote);
-      localStorage.setItem("local_categories", JSON.stringify(fromRemote.map((n: string) => ({ name: n }))));
     }
   }
 
   async function loadOrders() {
     const fromRemote = await getOrders();
-    if (fromRemote.length > 0) { setOrders(fromRemote); return; }
-    setOrders(JSON.parse(localStorage.getItem("localOrders") || "[]"));
+    if (fromRemote.length > 0) setOrders(fromRemote);
   }
 
   async function loadMaterials() {
     const fromRemote = await fetchMaterials();
-    if (fromRemote.length > 0) { setMaterials(fromRemote); return; }
-    const saved = JSON.parse(localStorage.getItem("local_materials") || "[]");
-    if (saved.length > 0) { setMaterials(saved.map((x: any) => x.name || x)); return; }
-    setMaterials(["PLA", "ABS", "PETG", "TPU", "Nylon", "Resina"]);
+    if (fromRemote.length > 0) setMaterials(fromRemote);
   }
 
   useEffect(() => { Promise.all([loadProducts(), loadColors(), loadCategories(), loadMaterials()]) }, []);
@@ -280,10 +165,6 @@ export default function App() {
     setShowProductForm(false);
     setEditingProduct(null);
     setSavingProduct(false);
-  }
-
-  function refreshLocal() {
-    setProducts(mergeLocal(FALLBACK_PRODUCTS, getLocalProducts()));
   }
 
   async function handleDeleteProduct() {
@@ -375,18 +256,8 @@ export default function App() {
   function resolveColorHex(name: string, fallback = "#e5e7eb"): string {
     const fromState = colors.find((c) => c.name === name)?.hex;
     if (fromState) return fromState;
-    if (COLOR_MAP[name]) return COLOR_MAP[name];
-    try {
-      const saved = JSON.parse(localStorage.getItem("local_colors") || "[]");
-      const found = saved.find((c: any) => c.name === name);
-      if (found?.hex) return found.hex;
-      if (found) {
-        const fixed = COLOR_MAP[found.name];
-        if (fixed) return fixed;
-      }
-    } catch {}
-    const fromFallback = COLOR_MAP[name];
-    if (fromFallback) return fromFallback;
+    const fromMap = managedHexMap[name];
+    if (fromMap) return fromMap;
     return fallback;
   }
 
@@ -622,7 +493,7 @@ export default function App() {
                             <div className="aspect-square flex items-center justify-center bg-gradient-to-br from-[#242424] to-[#1a1a1a]">
                               <div
                                 className="h-20 w-20 rounded-full shadow-lg"
-                                style={{ backgroundColor: p.color.hex || hexFromLocal(p.color.name) || resolveColorHex(p.color.name, p.color.hex), boxShadow: `0 0 30px ${resolveColorHex(p.color.name, p.color.hex)}33` }}
+                                style={{ backgroundColor: p.color.hex || resolveColorHex(p.color.name, p.color.hex), boxShadow: `0 0 30px ${resolveColorHex(p.color.name, p.color.hex)}33` }}
                               />
                             </div>
                           )
@@ -666,10 +537,10 @@ export default function App() {
                           <div className="flex items-center gap-2 mb-2">
                             {p.variants ? (
                               <span className="h-3.5 w-3.5 rounded-full border border-white/10 shadow-sm shrink-0"
-                                style={swatchStyle(p.variants[0].colors, resolveColorHex(p.variants[0].colorName, p.variants[0].colorHex) || hexFromLocal(p.variants[0].colorName) || p.variants[0].colorHex || "#e5e7eb")} />
+                                style={swatchStyle(p.variants[0].colors, resolveColorHex(p.variants[0].colorName, p.variants[0].colorHex) || p.variants[0].colorHex || "#e5e7eb")} />
                             ) : (
                               <span className="h-3 w-3 rounded-full border border-white/10 shadow-sm"
-                                style={{ background: resolveColorHex(p.color.name, p.color.hex) || hexFromLocal(p.color.name) || p.color.hex || "#e5e7eb" }} />
+                                style={{ background: resolveColorHex(p.color.name, p.color.hex) || p.color.hex || "#e5e7eb" }} />
                             )}
                             <span className="text-xs text-[#737373] font-medium">
                               {p.variants ? p.variants.map((v) => v.colorName).join(" / ") : p.color.name}
@@ -1156,7 +1027,7 @@ export default function App() {
                       active ? "border-[#f97316] bg-[#f97316]/5" : out ? "border-[#2d2d2d] opacity-40 cursor-not-allowed" : "border-[#404040] hover:border-[#525252] bg-[#242424]"
                     }`}>
                     <span className="h-5 w-5 rounded-full border border-white/10 shrink-0"
-                      style={swatchStyle(v.colors, v.colorHex || hexFromLocal(v.colorName) || resolveColorHex(v.colorName, v.colorHex) || "#e5e7eb")} />
+                      style={swatchStyle(v.colors, v.colorHex || resolveColorHex(v.colorName, v.colorHex) || "#e5e7eb")} />
                     <div className="text-left">
                       <span className={`text-sm font-medium ${active ? "text-[#f97316]" : "text-[#f5f5f5]"}`}>{v.colorName}</span>
                       {out && <p className="text-[10px] text-[#737373]">Indisponível</p>}
@@ -1205,8 +1076,8 @@ export default function App() {
       <Modal open={showProductForm} onClose={() => { setShowProductForm(false); setEditingProduct(null); }} title={editingProduct ? "Editar Produto" : "Novo Produto"}>
         <ProductForm
           product={editingProduct || undefined}
-          colors={colors.length > 0 ? colors : FALLBACK_PRODUCTS.map((p) => p.color).filter((c, i, a) => a.findIndex((x) => x.id === c.id) === i)}
-          categories={managedCategories.length > 0 ? managedCategories : ["Organizadores", "Utilitários", "Acessórios", "Decoração"]}
+          colors={colors}
+          categories={managedCategories}
           products={products}
           onSubmit={handleSaveProduct}
           onCancel={() => { setShowProductForm(false); setEditingProduct(null); }}

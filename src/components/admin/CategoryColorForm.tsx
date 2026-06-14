@@ -1,37 +1,21 @@
 import { useState, useEffect } from "react";
-import { Pencil, Trash2, Plus } from "lucide-react";
 import Modal from "../ui/Modal";
-import { saveColors, saveCategories, saveMaterials } from "../../lib/db";
+import { fetchColors, saveColors, fetchCategories, saveCategories, fetchMaterials, saveMaterials } from "../../lib/db";
 
-interface Item {
-  id?: number;
-  name: string;
-  code?: string;
-  hex?: string;
-  hexes?: string[];
-}
+interface Props { type: "category" | "color" | "material"; open: boolean; onClose: () => void; }
 
-interface Props {
-  type: "category" | "color" | "material";
-  open: boolean;
-  onClose: () => void;
-}
+interface Item { id: number | string; name: string; code?: string; hex?: string; hexes?: string[]; }
 
-function makeid() {
-  return Date.now() + Math.random();
-}
+let _cid = Date.now();
+function makeid() { return _cid++; }
 
-function swatchPreview(item: Item): string {
-  const h = item.hexes?.filter(Boolean) || [];
-  if (h.length >= 2) {
-    const n = h.length;
-    const stops = h.map((hex, i) => `${hex} ${(i * 360 / n)}deg ${((i + 1) * 360 / n)}deg`).join(", ");
-    return `conic-gradient(${stops})`;
+function hexVal(item: Item): string {
+  if (item.hexes?.length && item.hexes.filter(Boolean).length > 1) {
+    const n = item.hexes.length;
+    return `conic-gradient(${item.hexes.map((h, i) => `${h} ${(i * 360 / n)}deg ${((i + 1) * 360 / n)}deg`).join(", ")})`;
   }
   return item.hex || "#e5e7eb";
 }
-
-const STORAGE_KEY = { category: "local_categories", color: "local_colors", material: "local_materials" } as const;
 
 export default function CategoryColorForm({ type, open, onClose }: Props) {
   const [items, setItems] = useState<Item[]>([]);
@@ -40,40 +24,32 @@ export default function CategoryColorForm({ type, open, onClose }: Props) {
   const [newCode, setNewCode] = useState("");
   const [newHex, setNewHex] = useState("#e5e7eb");
   const [newHexes, setNewHexes] = useState<string[]>(["#e5e7eb"]);
+  const [loading, setLoading] = useState(false);
 
-  const storageKey = STORAGE_KEY[type];
   const label = type === "color" ? "Cor" : type === "material" ? "Material" : "Categoria";
   const isColor = type === "color";
 
-  function loadItems(): Item[] {
-    const saved = JSON.parse(localStorage.getItem(storageKey) || "[]");
-    if (saved.length > 0) return saved;
-    if (type === "category") {
-      return ["Organizadores", "Utilitários", "Acessórios", "Decoração"].map((n) => ({ id: makeid(), name: n }));
-    }
-    if (type === "color") {
-      return [
-        { id: makeid(), name: "Preta", code: "BK", hex: "#1f2937", hexes: ["#1f2937"] }, { id: makeid(), name: "Branca", code: "WH", hex: "#f9fafb", hexes: ["#f9fafb"] },
-        { id: makeid(), name: "Vermelha", code: "RD", hex: "#ef4444", hexes: ["#ef4444"] }, { id: makeid(), name: "Azul", code: "BL", hex: "#3b82f6", hexes: ["#3b82f6"] },
-        { id: makeid(), name: "Verde", code: "GN", hex: "#22c55e", hexes: ["#22c55e"] }, { id: makeid(), name: "Amarela", code: "YL", hex: "#eab308", hexes: ["#eab308"] },
-        { id: makeid(), name: "Rosa", code: "PK", hex: "#ec4899", hexes: ["#ec4899"] }, { id: makeid(), name: "Cinza", code: "GY", hex: "#9ca3af", hexes: ["#9ca3af"] },
-        { id: makeid(), name: "Laranja", code: "OR", hex: "#f97316", hexes: ["#f97316"] }, { id: makeid(), name: "Marrom", code: "BR", hex: "#78350f", hexes: ["#78350f"] },
-        { id: makeid(), name: "Bege", code: "BG", hex: "#d6a354", hexes: ["#d6a354"] }, { id: makeid(), name: "Roxa", code: "PL", hex: "#a855f7", hexes: ["#a855f7"] },
-        { id: makeid(), name: "Prata", code: "SL", hex: "#cbd5e1", hexes: ["#cbd5e1"] }, { id: makeid(), name: "Dourada", code: "GD", hex: "#f59e0b", hexes: ["#f59e0b"] },
-        { id: makeid(), name: "Transparente", code: "TR", hex: "#e5e7eb", hexes: ["#e5e7eb"] },
-      ];
-    }
-    if (type === "material") {
-      return ["PLA", "ABS", "PETG", "TPU", "Nylon", "Resina"].map((n) => ({ id: makeid(), name: n }));
-    }
-    return [];
-  }
-
   useEffect(() => {
-    if (open) {
-      setItems(loadItems());
+    if (!open) return;
+    (async () => {
+      setLoading(true);
+      let loaded: Item[] = [];
+      if (type === "color") {
+        const fromDb = await fetchColors();
+        if (fromDb.length > 0) {
+          loaded = fromDb.map((c: any) => ({ id: c.id, name: c.name, code: c.code || "", hex: c.hex || "#e5e7eb", hexes: c.hexes?.filter(Boolean)?.length ? c.hexes : [c.hex || "#e5e7eb"] }));
+        }
+      } else if (type === "category") {
+        const fromDb = await fetchCategories();
+        loaded = fromDb.length > 0 ? fromDb.map((n) => ({ id: makeid(), name: n })) : [];
+      } else if (type === "material") {
+        const fromDb = await fetchMaterials();
+        loaded = fromDb.length > 0 ? fromDb.map((n) => ({ id: makeid(), name: n })) : [];
+      }
+      setItems(loaded);
+      setLoading(false);
       resetForm();
-    }
+    })();
   }, [open, type]);
 
   function resetForm() {
@@ -84,12 +60,11 @@ export default function CategoryColorForm({ type, open, onClose }: Props) {
     setNewHexes(["#e5e7eb"]);
   }
 
-  async function persist(items: Item[]) {
-    setItems(items);
-    localStorage.setItem(storageKey, JSON.stringify(items));
-    if (type === "color") await saveColors(items);
-    else if (type === "category") await saveCategories(items.map((i) => i.name));
-    else if (type === "material") await saveMaterials(items.map((i) => i.name));
+  async function persist(newItems: Item[]) {
+    setItems(newItems);
+    if (type === "color") await saveColors(newItems);
+    else if (type === "category") await saveCategories(newItems.map((i) => i.name));
+    else if (type === "material") await saveMaterials(newItems.map((i) => i.name));
   }
 
   async function add() {
@@ -123,100 +98,87 @@ export default function CategoryColorForm({ type, open, onClose }: Props) {
     await persist(items.filter((i) => i.id !== item.id));
   }
 
-  function startEdit(item: Item) {
+  function selectColorForEdit(item: Item) {
     setEdit(item);
     setNewName(item.name);
     setNewCode(item.code || "");
-    setNewHex((item.hexes?.[0] || item.hex) || "#e5e7eb");
-    setNewHexes((item.hexes?.filter(Boolean).length ? item.hexes! : [(item.hex || "#e5e7eb")]));
+    if (item.hexes?.filter(Boolean).length) {
+      setNewHexes(item.hexes);
+      setNewHex(item.hexes[0] || "#e5e7eb");
+    } else {
+      setNewHexes([item.hex || "#e5e7eb"]);
+      setNewHex(item.hex || "#e5e7eb");
+    }
   }
 
-  const isMulti = newHexes.length >= 2;
+  const hasMulti = newHexes.filter(Boolean).length > 1;
 
   return (
-    <Modal open={open} onClose={onClose} title={`Gerenciar ${label}s`}>
-      <div className="space-y-4">
-        <div className="flex gap-2 flex-wrap">
-          <input value={newName} onChange={(e) => setNewName(e.target.value)}
-            placeholder={`Nome da ${label.toLowerCase()}`}
-            className="min-w-0 flex-1 rounded-xl border border-[#404040] bg-[#242424] px-4 py-2 text-sm text-[#f5f5f5] placeholder-[#525252] focus:border-[#f97316] outline-none" />
+    <Modal open={open} onClose={onClose} title={`Gerenciar ${label}${label === "Material" ? "s" : "es"}`}>
+      <form onSubmit={(e) => { e.preventDefault(); edit ? update() : add(); }} className="space-y-4">
+        <div className="flex items-end gap-2">
+          <div className="flex-1">
+            <label className="block text-xs text-gray-400 mb-1">Nome</label>
+            <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={`Nova ${label.toLowerCase()}`} className="w-full px-3 py-2 rounded-lg bg-[#252525] border border-[#333] text-white text-sm focus:outline-none focus:border-[#f97316]" />
+          </div>
           {isColor && (
-            <>
-              <input value={newCode} onChange={(e) => setNewCode(e.target.value.toUpperCase())}
-                placeholder="Código" maxLength={4}
-                className="w-20 rounded-xl border border-[#404040] bg-[#242424] px-3 py-2 text-sm text-[#f5f5f5] uppercase placeholder-[#525252] focus:border-[#f97316] outline-none" />
-              <div className="flex items-center gap-2">
-                <input type="color" value={newHexes[0] || "#e5e7eb"}
-                  onChange={(e) => setNewHexes([e.target.value, ...newHexes.slice(1)])}
-                  className="h-10 w-10 rounded-xl border border-[#404040] bg-[#242424] cursor-pointer p-0.5" />
-                {isMulti && (
-                  <>
-                    <input type="color" value={newHexes[1] || "#e5e7eb"}
-                      onChange={(e) => {
-                        const n = [...newHexes];
-                        n[1] = e.target.value;
-                        setNewHexes(n);
-                      }}
-                      className="h-10 w-10 rounded-xl border border-[#404040] bg-[#242424] cursor-pointer p-0.5" />
-                    <input type="color" value={newHexes[2] || "#e5e7eb"}
-                      onChange={(e) => {
-                        const n = [...newHexes];
-                        n[2] = e.target.value;
-                        setNewHexes(n);
-                      }}
-                      className="h-10 w-10 rounded-xl border border-[#404040] bg-[#242424] cursor-pointer p-0.5" />
-                  </>
-                )}
-              </div>
-              <label className="flex items-center gap-1.5 text-xs text-[#a3a3a3] cursor-pointer whitespace-nowrap">
-                <input type="checkbox" checked={isMulti}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      const h = [...newHexes];
-                      while (h.length < 3) h.push("#e5e7eb");
-                      setNewHexes(h);
-                    } else {
-                      setNewHexes([newHexes[0] || "#e5e7eb"]);
-                    }
-                  }}
-                  className="rounded border-[#404040] bg-[#242424] text-[#f97316] focus:ring-[#f97316]" />
-                Multi
-              </label>
-            </>
+            <div className="w-20">
+              <label className="block text-xs text-gray-400 mb-1">Código</label>
+              <input value={newCode} onChange={(e) => setNewCode(e.target.value.toUpperCase())} placeholder="BK" maxLength={4} className="w-full px-3 py-2 rounded-lg bg-[#252525] border border-[#333] text-white text-sm focus:outline-none focus:border-[#f97316]" />
+            </div>
           )}
-          <button onClick={edit ? update : add} type="button"
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f97316] text-white hover:bg-[#ea580c] transition-colors shrink-0">
-            <Plus className="h-4 w-4" />
+          <button type="submit" className="px-4 py-2 rounded-lg bg-[#f97316] text-white text-sm font-semibold hover:bg-[#ea580c] transition-colors whitespace-nowrap">
+            {edit ? "Salvar" : "Adicionar"}
           </button>
         </div>
-
-        <div className="divide-y divide-[#2d2d2d] max-h-60 overflow-y-auto">
-          {items.map((item) => (
-            <div key={item.id} className="flex items-center justify-between py-2.5">
-              <div className="flex items-center gap-3">
-                {type === "color" && (
-                  <span className="h-4 w-4 rounded-full border border-white/10 shadow-sm shrink-0"
-                    style={{ background: swatchPreview(item) }} />
-                )}
-                <span className="text-sm text-[#f5f5f5]">{item.name}</span>
-                {item.code && <span className="text-[10px] text-[#737373] uppercase">{item.code}</span>}
-                {isColor && item.hexes && item.hexes.length >= 2 && (
-                  <span className="text-[10px] text-[#f97316] font-medium">● Multi</span>
-                )}
-              </div>
-              <div className="flex gap-1">
-                <button onClick={() => startEdit(item)} type="button"
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-[#737373] hover:text-[#f97316] hover:bg-[#2d2d2d] transition-colors">
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button onClick={() => remove(item)} type="button"
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-[#737373] hover:text-[#ef4444] hover:bg-[#2d2d2d] transition-colors">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
+        {isColor && (
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-xs text-gray-400">
+              <input type="checkbox" checked={hasMulti} onChange={() => setNewHexes(hasMulti ? [newHex] : [newHex, "#e5e7eb"])} className="accent-[#f97316]" />
+              Multicolorido (até 3 cores)
+            </label>
+            <div className="flex flex-wrap gap-3">
+              {newHexes.map((h, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <label className="text-[10px] text-gray-500">Cor {i + 1}</label>
+                  <input type="color" value={h || "#e5e7eb"} onChange={(e) => { const next = [...newHexes]; next[i] = e.target.value; setNewHexes(next); }} className="w-8 h-8 rounded cursor-pointer border border-[#333]" />
+                  {hasMulti && i > 0 && (
+                    <button type="button" onClick={() => setNewHexes(newHexes.filter((_, j) => j !== i))} className="text-[10px] text-red-400 hover:text-red-300">&times;</button>
+                  )}
+                </div>
+              ))}
+              {hasMulti && newHexes.length < 3 && (
+                <button type="button" onClick={() => setNewHexes([...newHexes, "#e5e7eb"])} className="text-xs text-[#f97316] hover:underline">+ adicionar cor</button>
+              )}
             </div>
-          ))}
-        </div>
+          </div>
+        )}
+      </form>
+
+      <div className="mt-6 space-y-2 max-h-64 overflow-y-auto">
+        {loading ? (
+          <p className="text-center text-gray-500 text-sm py-4">Carregando...</p>
+        ) : items.length === 0 ? (
+          <p className="text-center text-gray-500 text-sm py-4">Nenhum {label.toLowerCase()} cadastrado.</p>
+        ) : items.map((item) => (
+          <div key={item.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#252525] border border-[#333] group">
+            <div className="flex items-center gap-2">
+              {isColor && (
+                <span className="inline-block w-5 h-5 rounded-full border border-[#444] flex-shrink-0" style={{ background: hexVal(item) }} />
+              )}
+              <span className="text-sm text-gray-200">{item.name}</span>
+              {item.code && <span className="text-[10px] text-gray-500">({item.code})</span>}
+            </div>
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={() => selectColorForEdit(item)} className="p-1.5 rounded-lg text-gray-500 hover:text-[#f97316] hover:bg-[#2a2a2a] transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+              </button>
+              <button type="button" onClick={() => remove(item)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-[#2a2a2a] transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
     </Modal>
   );
