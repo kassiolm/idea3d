@@ -534,17 +534,16 @@ export default function App() {
 
                         {/* Info */}
                         <div className="p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            {p.variants ? (
-                              <span className="h-3.5 w-3.5 rounded-full border border-white/10 shadow-sm shrink-0"
-                                style={swatchStyle(p.variants[0].colors, resolveColorHex(p.variants[0].colorName, p.variants[0].colorHex) || p.variants[0].colorHex || "#e5e7eb")} />
-                            ) : (
-                              <span className="h-3 w-3 rounded-full border border-white/10 shadow-sm"
+                          <div className="flex items-center gap-1.5 mb-2 min-h-[18px]">
+                            {p.variants ? p.variants.map((v, vi) => (
+                              <span key={vi} className="h-4 w-4 rounded-full border border-white/10 shadow-sm shrink-0"
+                                title={v.colorName}
+                                style={swatchStyle(v.colors, resolveColorHex(v.colorName, v.colorHex) || v.colorHex || "#e5e7eb")} />
+                            )) : (
+                              <span className="h-4 w-4 rounded-full border border-white/10 shadow-sm shrink-0"
+                                title={p.color.name}
                                 style={{ background: resolveColorHex(p.color.name, p.color.hex) || p.color.hex || "#e5e7eb" }} />
                             )}
-                            <span className="text-xs text-[#737373] font-medium">
-                              {p.variants ? p.variants.map((v) => v.colorName).join(" / ") : p.color.name}
-                            </span>
                           </div>
                           <h3 className="font-semibold text-[#f5f5f5] text-base leading-snug">{p.name}</h3>
                           {p.description && (
