@@ -284,7 +284,7 @@ export default function App() {
                 </div>
 
                 <div className="relative flex-shrink-0">
-                  <div className="w-48 h-48 sm:w-56 sm:h-56 relative animate-float">
+                  <div className="w-[150px] h-[150px] sm:w-[180px] sm:h-[180px] relative animate-float">
                     <img
                       src={`${BASE}logo.png`}
                       alt="IdeaShop3D"
