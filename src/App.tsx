@@ -4,6 +4,8 @@ import { ShoppingCart, X, Plus, Minus, Check, Package, Truck, MapPin, ChevronRig
 import type { Product, CartItem, ProductFormData } from "./types";
 import { FALLBACK_PRODUCTS } from "./data/products";
 import { useCart } from "./hooks/useCart";
+
+const BASE = import.meta.env.BASE_URL || "/";
 import Modal from "./components/ui/Modal";
 import AdminLogin from "./components/admin/AdminLogin";
 import ProductForm from "./components/admin/ProductForm";
@@ -200,7 +202,7 @@ export default function App() {
             id="header-logo"
           >
             <img
-              src="/logo.png"
+              src={`${BASE}logo.png`}
               alt="IdeaShop3D Logo"
               className="h-10 w-10 object-contain rounded-lg transition-transform duration-300 group-hover:scale-110"
             />
@@ -284,7 +286,7 @@ export default function App() {
                 <div className="relative flex-shrink-0">
                   <div className="w-48 h-48 sm:w-56 sm:h-56 relative animate-float">
                     <img
-                      src="/logo.png"
+                      src={`${BASE}logo.png`}
                       alt="IdeaShop3D"
                       className="w-full h-full object-contain drop-shadow-2xl"
                     />
@@ -437,7 +439,7 @@ export default function App() {
             <footer className="mt-16 border-t border-[#2d2d2d] pt-8 pb-4">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <img src="/logo.png" alt="IdeaShop3D" className="h-8 w-8 object-contain rounded-lg" />
+                  <img src={`${BASE}logo.png`} alt="IdeaShop3D" className="h-8 w-8 object-contain rounded-lg" />
                   <span className="text-sm text-[#737373]">
                     © {new Date().getFullYear()} IdeaShop3D. Todos os direitos reservados.
                   </span>
