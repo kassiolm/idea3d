@@ -39,16 +39,36 @@ export async function saveProduct(product: Product): Promise<void> {
     color: product.color || null,
   };
   localStorage.setItem(`local_products_${product.sku}`, JSON.stringify(product));
+  updateCacheProducts(product);
   if (supabase) {
     await supabase.from("products").upsert(payload, { onConflict: "sku" });
   }
 }
 
+function updateCacheProducts(product: Product) {
+  try {
+    const cache = JSON.parse(localStorage.getItem("cache_products") || "[]");
+    const idx = cache.findIndex((p: any) => p.sku === product.sku);
+    if (idx >= 0) cache[idx] = product;
+    else cache.push(product);
+    localStorage.setItem("cache_products", JSON.stringify(cache));
+  } catch {}
+}
+
 export async function deleteProduct(sku: string): Promise<void> {
   localStorage.setItem(`local_products_${sku}_deleted`, "1");
+  removeFromCacheProducts(sku);
   if (supabase) {
     await supabase.from("products").delete().eq("sku", sku);
   }
+}
+
+function removeFromCacheProducts(sku: string) {
+  try {
+    const cache = JSON.parse(localStorage.getItem("cache_products") || "[]");
+    const filtered = cache.filter((p: any) => p.sku !== sku);
+    localStorage.setItem("cache_products", JSON.stringify(filtered));
+  } catch {}
 }
 
 // ─── Colors ───

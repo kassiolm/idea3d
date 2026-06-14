@@ -100,10 +100,18 @@ export default function App() {
 
   async function loadProducts() {
     const fromRemote = await fetchProducts();
+    const locals = getLocalProducts();
     if (fromRemote.length > 0) {
-      setProducts(fromRemote);
+      const merged = fromRemote.map((p) => {
+        const lp = locals.find((l) => l.sku === p.sku);
+        return lp || p;
+      });
+      for (const l of locals) {
+        if (!merged.find((m) => m.sku === l.sku)) merged.push(l);
+      }
+      setProducts(merged);
     } else {
-      setProducts(mergeLocal(FALLBACK_PRODUCTS, getLocalProducts()));
+      setProducts(mergeLocal(FALLBACK_PRODUCTS, locals));
     }
     setLoading(false);
   }
