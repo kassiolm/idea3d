@@ -57,9 +57,20 @@ export default function ProductForm({ product, colors, categories, products = []
         return { ...v, colorId: c0.id, colorName: c0.name, colorCode: c0.code, colorHex: (c0 as any).hex, colors: cols, images: v.images || (v.image ? [v.image] : []) };
       });
     }
-    const c = colors[0] || { id: 1, name: "", code: "", hex: "" };
-    const base = colorEntry(c);
-    return [{ colorId: c.id, colorName: c.name, colorCode: c.code, colorHex: (c as any).hex, colors: [base], stock: product?.stock ?? 0, image: product?.image || null, images: product?.images || [] }];
+    return [buildVariantFromSequence(0)];
+  }
+
+  function buildVariantFromSequence(startIdx: number): ProductVariant {
+    const c0 = colors[startIdx] || colors[0] || { id: 1, name: "", code: "", hex: "" };
+    const cols = [colorEntry(c0)];
+    const c1 = colors[startIdx + 1];
+    if (c1) cols.push(colorEntry(c1));
+    const c2 = colors[startIdx + 2];
+    if (c2) cols.push(colorEntry(c2));
+    return {
+      colorId: c0.id, colorName: c0.name, colorCode: c0.code, colorHex: (c0 as any).hex,
+      colors: cols, stock: 0, image: null, images: [],
+    };
   }
   const [variants, setVariants] = useState<ProductVariant[]>(initVariants);
   const [error, setError] = useState("");
@@ -73,12 +84,8 @@ export default function ProductForm({ product, colors, categories, products = []
   }, [name, product, products, sku]);
 
   function addVariant() {
-    const c = colors[0];
-    const base = colorEntry(c || { id: 1, name: "", code: "", hex: "" });
-    setVariants([...variants, {
-      colorId: base.id, colorName: base.name, colorCode: c?.code || "", colorHex: base.hex,
-      colors: [base], stock: 0, image: null, images: [],
-    }]);
+    const nextIdx = variants.length;
+    setVariants([...variants, buildVariantFromSequence(nextIdx)]);
   }
 
   function syncVariant(v: ProductVariant): ProductVariant {
@@ -100,7 +107,6 @@ export default function ProductForm({ product, colors, categories, products = []
       if (c) {
         const h = (c as any).hexes as string[] | undefined;
         if (slotIdx === 0 && h && h.length >= 2) {
-          // Multi-color managed color → populate all slots
           const newCols = h.map((hex: string) => ({ id: c.id, name: c.name, hex }));
           next[i] = syncVariant({ ...next[i], colors: newCols });
           setVariants(next);
@@ -108,6 +114,7 @@ export default function ProductForm({ product, colors, categories, products = []
         }
         if (slotIdx < cols.length) cols[slotIdx] = colorEntry(c);
         else cols.push(colorEntry(c));
+        if (slotIdx === 0) autoFillSlots(cols, colorId);
       }
     }
     if (!cols.length) {
@@ -116,6 +123,21 @@ export default function ProductForm({ product, colors, categories, products = []
     }
     next[i] = syncVariant({ ...next[i], colors: cols });
     setVariants(next);
+  }
+
+  function autoFillSlots(cols: { id: number; name: string; hex: string }[], colorId: number) {
+    const idx = colors.findIndex((co) => co.id === colorId);
+    if (idx < 0) return;
+    const n1 = colors[idx + 1];
+    if (n1) {
+      if (cols.length < 2) cols.push(colorEntry(n1));
+      else cols[1] = colorEntry(n1);
+    }
+    const n2 = colors[idx + 2];
+    if (n2) {
+      if (cols.length < 3) cols.push(colorEntry(n2));
+      else cols[2] = colorEntry(n2);
+    }
   }
 
   function updateVariant(i: number, field: string, value: any) {
