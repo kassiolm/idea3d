@@ -1,4 +1,11 @@
 -- Rodar no SQL Editor do Supabase (https://supabase.com/dashboard/project/_/sql/new)
+-- ATENÇÃO: Apaga TODOS os dados existentes!
+
+DROP TABLE IF EXISTS orders CASCADE;
+DROP TABLE IF EXISTS products CASCADE;
+DROP TABLE IF EXISTS colors CASCADE;
+DROP TABLE IF EXISTS categories CASCADE;
+DROP TABLE IF EXISTS materials CASCADE;
 
 -- 1. Colors
 CREATE TABLE colors (

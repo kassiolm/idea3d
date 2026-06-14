@@ -195,13 +195,16 @@ export default function App() {
   }
 
   async function loadCategories() {
-    const fromRemote = await fetchCategories();
-    if (fromRemote.length > 0) { setManagedCategories(fromRemote); return; }
     const saved = JSON.parse(localStorage.getItem("local_categories") || "[]");
     if (saved.length > 0) {
       setManagedCategories(saved.map((x: any) => x.name || x));
     } else {
       setManagedCategories(["Organizadores", "Utilitários", "Acessórios", "Decoração"]);
+    }
+    const fromRemote = await fetchCategories();
+    if (fromRemote.length > 0) {
+      setManagedCategories(fromRemote);
+      localStorage.setItem("local_categories", JSON.stringify(fromRemote.map((n: string) => ({ name: n }))));
     }
   }
 

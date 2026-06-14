@@ -92,7 +92,7 @@ export default function CategoryColorForm({ type, open, onClose }: Props) {
     else if (type === "material") await saveMaterials(items.map((i) => i.name));
   }
 
-  function add() {
+  async function add() {
     if (!newName.trim()) return;
     const hexes = newHexes.filter(Boolean);
     const payload: Item = { id: makeid(), name: newName.trim() };
@@ -101,11 +101,11 @@ export default function CategoryColorForm({ type, open, onClose }: Props) {
       payload.hex = hexes[0] || "#e5e7eb";
       payload.hexes = hexes.length > 1 ? hexes : [payload.hex];
     }
-    persist([...items, payload]);
+    await persist([...items, payload]);
     resetForm();
   }
 
-  function update() {
+  async function update() {
     if (!edit || !newName.trim()) return;
     const hexes = newHexes.filter(Boolean);
     const payload: any = { name: newName.trim() };
@@ -114,13 +114,13 @@ export default function CategoryColorForm({ type, open, onClose }: Props) {
       payload.hex = hexes[0] || "#e5e7eb";
       payload.hexes = hexes.length > 1 ? hexes : [payload.hex];
     }
-    persist(items.map((i) => (i.id === edit.id ? { ...i, ...payload } : i)));
+    await persist(items.map((i) => (i.id === edit.id ? { ...i, ...payload } : i)));
     resetForm();
   }
 
-  function remove(item: Item) {
+  async function remove(item: Item) {
     if (!confirm(`Excluir ${item.name}?`)) return;
-    persist(items.filter((i) => i.id !== item.id));
+    await persist(items.filter((i) => i.id !== item.id));
   }
 
   function startEdit(item: Item) {
