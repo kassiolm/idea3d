@@ -195,7 +195,7 @@ export default function App() {
 
       {/* ═══════════ HEADER ═══════════ */}
       <header className="sticky top-0 z-40 border-b border-[#2d2d2d] bg-[#1a1a1a]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+        <div className="mx-auto flex h-24 max-w-6xl items-center justify-between px-4 sm:px-6">
           <button
             onClick={() => { setView("catalog"); setCartOpen(false); }}
             className="flex items-center gap-3 group"
@@ -204,7 +204,7 @@ export default function App() {
             <img
               src={`${BASE}logo.png`}
               alt="IdeaShop3D Logo"
-              className="h-10 w-10 object-contain rounded-lg transition-transform duration-300 group-hover:scale-110"
+              className="h-20 w-20 object-contain rounded-xl transition-transform duration-300 group-hover:scale-110"
             />
             <div className="flex flex-col">
               <span className="text-lg font-bold tracking-tight text-[#f5f5f5] leading-none">
@@ -439,7 +439,7 @@ export default function App() {
             <footer className="mt-16 border-t border-[#2d2d2d] pt-8 pb-4">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <img src={`${BASE}logo.png`} alt="IdeaShop3D" className="h-8 w-8 object-contain rounded-lg" />
+                  <img src={`${BASE}logo.png`} alt="IdeaShop3D" className="h-16 w-16 object-contain rounded-xl" />
                   <span className="text-sm text-[#737373]">
                     © {new Date().getFullYear()} IdeaShop3D. Todos os direitos reservados.
                   </span>
