@@ -9,7 +9,7 @@ export default function AdminLogin({ onLogin }: Props) {
   const [pwd, setPwd] = useState("");
   const [error, setError] = useState(false);
 
-  const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || "idea3d123";
+  const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || "123";
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

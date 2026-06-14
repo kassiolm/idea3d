@@ -2,6 +2,19 @@ export interface Color {
   id: number;
   name: string;
   code: string;
+  hex?: string;
+  hexes?: string[];
+}
+
+export interface ProductVariant {
+  colorId: number;
+  colorName: string;
+  colorCode: string;
+  colorHex?: string;
+  colors?: { id: number; name: string; hex: string }[];
+  stock: number;
+  image: string | null;
+  images?: string[];
 }
 
 export interface Product {
@@ -14,8 +27,10 @@ export interface Product {
   price: number;
   stock: number;
   image: string | null;
+  images?: string[];
   category: string | null;
   color: Color;
+  variants?: ProductVariant[];
 }
 
 export interface CartItem {
@@ -25,6 +40,20 @@ export interface CartItem {
   price: number;
   quantity: number;
   image: string | null;
+  images?: string[];
+}
+
+export interface ProductFormData {
+  sku: string;
+  name: string;
+  description?: string;
+  category: string;
+  price: number;
+  stock: number;
+  color_id: number;
+  image: string;
+  images?: string[];
+  variants?: ProductVariant[];
 }
 
 export interface Order {
@@ -40,13 +69,4 @@ export interface Order {
   created_at: string;
 }
 
-export interface ProductFormData {
-  sku: string;
-  name: string;
-  description?: string;
-  category: string;
-  price: number;
-  stock: number;
-  color_id: number;
-  image: string;
-}
+

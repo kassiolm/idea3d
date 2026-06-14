@@ -8,6 +8,12 @@ CREATE TABLE IF NOT EXISTS colors (
   code TEXT UNIQUE NOT NULL
 );
 
+-- Tabela de categorias
+CREATE TABLE IF NOT EXISTS categories (
+  id SERIAL PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL
+);
+
 -- Tabela de produtos
 CREATE TABLE IF NOT EXISTS products (
   id SERIAL PRIMARY KEY,
@@ -58,6 +64,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Inserir categorias padrão (ignora se já existirem)
+INSERT INTO categories (name) VALUES
+  ('Organizadores'), ('Utilitários'), ('Acessórios'), ('Decoração')
+ON CONFLICT (name) DO NOTHING;
+
 -- Inserir cores (ignora se já existirem)
 INSERT INTO colors (name, code) VALUES
   ('Preta', 'BK'), ('Branca', 'WH'), ('Vermelha', 'RD'), ('Azul', 'BL'),
@@ -81,10 +92,26 @@ INSERT INTO products (sku, name, model_number, color_id, price, stock, category)
   ('SKU-CG01BK-SK', 'Caixa Grande SILK', '1.0', (SELECT id FROM colors WHERE code = 'BK'), 60, 0, 'Organizadores')
 ON CONFLICT (sku) DO NOTHING;
 
+-- RLS: cores
+ALTER TABLE colors ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "cores_leitura_anon" ON colors;
+CREATE POLICY "cores_leitura_anon" ON colors FOR SELECT TO anon USING (true);
+
+-- RLS: categorias
+ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "categorias_leitura_anon" ON categories;
+CREATE POLICY "categorias_leitura_anon" ON categories FOR SELECT TO anon USING (true);
+
 -- RLS: produtos
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "produtos_leitura_anon" ON products;
 CREATE POLICY "produtos_leitura_anon" ON products FOR SELECT TO anon USING (true);
+DROP POLICY IF EXISTS "produtos_insert_anon" ON products;
+CREATE POLICY "produtos_insert_anon" ON products FOR INSERT TO anon WITH CHECK (true);
+DROP POLICY IF EXISTS "produtos_update_anon" ON products;
+CREATE POLICY "produtos_update_anon" ON products FOR UPDATE TO anon USING (true);
+DROP POLICY IF EXISTS "produtos_delete_anon" ON products;
+CREATE POLICY "produtos_delete_anon" ON products FOR DELETE TO anon USING (true);
 
 -- RLS: pedidos
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
