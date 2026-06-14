@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { Upload } from "lucide-react";
 import type { Product, Color } from "../../types";
 
 interface ProductFormData {
   sku: string;
   name: string;
+  description?: string;
   category: string;
   price: number;
   stock: number;
@@ -14,23 +16,44 @@ interface ProductFormData {
 interface Props {
   product?: Product;
   colors: Color[];
+  categories: string[];
   onSubmit: (data: ProductFormData) => void;
   onCancel: () => void;
 }
 
-const CATEGORIES = ["Organizadores", "Utilitários", "Acessórios", "Decoração"];
+const IMGBB_KEY = import.meta.env.VITE_IMGBB_KEY || "";
 
-export default function ProductForm({ product, colors, onSubmit, onCancel }: Props) {
+export default function ProductForm({ product, colors, categories, onSubmit, onCancel }: Props) {
   const [form, setForm] = useState<ProductFormData>({
     sku: product?.sku || "",
     name: product?.name || "",
-    category: product?.category || CATEGORIES[0],
+    description: product?.description || "",
+    category: product?.category || categories[0] || "",
     price: product?.price || 0,
     stock: product?.stock ?? 0,
     color_id: product?.color_id || colors[0]?.id || 1,
     image: product?.image || "",
   });
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function handleUpload(files: FileList | null) {
+    const file = files?.[0];
+    if (!file || !IMGBB_KEY) return;
+    setUploading(true);
+    const fd = new FormData();
+    fd.append("image", file);
+    fd.append("key", IMGBB_KEY);
+    try {
+      const res = await fetch("https://api.imgbb.com/1/upload", { method: "POST", body: fd });
+      const json = await res.json();
+      if (json.data?.url) setForm({ ...form, image: json.data.url });
+    } catch {
+      setError("Erro ao fazer upload. Tente URL manual.");
+    }
+    setUploading(false);
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,9 +70,7 @@ export default function ProductForm({ product, colors, onSubmit, onCancel }: Pro
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {error && (
-        <p className="text-sm text-[#ef4444] bg-[#ef4444]/10 rounded-lg px-3 py-2">{error}</p>
-      )}
+      {error && <p className="text-sm text-[#ef4444] bg-[#ef4444]/10 rounded-lg px-3 py-2">{error}</p>}
 
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -59,7 +80,7 @@ export default function ProductForm({ product, colors, onSubmit, onCancel }: Pro
         <div>
           <label className={labelClass}>Categoria</label>
           <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={fieldClass}>
-            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
       </div>
@@ -67,6 +88,11 @@ export default function ProductForm({ product, colors, onSubmit, onCancel }: Pro
       <div>
         <label className={labelClass}>Nome *</label>
         <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nome do produto" className={fieldClass} />
+      </div>
+
+      <div>
+        <label className={labelClass}>Descrição</label>
+        <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Descrição do produto..." rows={3} className={`${fieldClass} resize-none`} />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -88,8 +114,23 @@ export default function ProductForm({ product, colors, onSubmit, onCancel }: Pro
       </div>
 
       <div>
-        <label className={labelClass}>URL da Imagem</label>
-        <input value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder="/images/produto.webp" className={fieldClass} />
+        <label className={labelClass}>Imagem</label>
+        <div className="flex gap-2">
+          <input value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder="URL da imagem" className={fieldClass} />
+          {IMGBB_KEY && (
+            <>
+              <input type="file" accept="image/*" hidden ref={fileRef} onChange={(e) => handleUpload(e.target.files)} />
+              <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
+                className="flex items-center gap-1.5 rounded-xl border border-[#404040] bg-[#242424] px-3 py-2 text-xs text-[#a3a3a3] hover:text-[#f5f5f5] transition-colors disabled:opacity-50 whitespace-nowrap">
+                <Upload className="h-3.5 w-3.5" />
+                {uploading ? "..." : "Upload"}
+              </button>
+            </>
+          )}
+        </div>
+        {form.image && (
+          <img src={form.image} alt="preview" className="mt-2 h-20 w-20 rounded-lg object-cover border border-[#404040]" />
+        )}
       </div>
 
       <div className="flex gap-3 pt-2">

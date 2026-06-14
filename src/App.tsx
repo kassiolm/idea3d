@@ -10,6 +10,7 @@ import Modal from "./components/ui/Modal";
 import AdminLogin from "./components/admin/AdminLogin";
 import ProductForm from "./components/admin/ProductForm";
 import DeleteConfirm from "./components/admin/DeleteConfirm";
+import CategoryColorForm from "./components/admin/CategoryColorForm";
 
 const COLOR_MAP: Record<string, string> = {
   Preta: "#1f2937", Branca: "#f9fafb", Vermelha: "#ef4444", Azul: "#3b82f6",
@@ -39,6 +40,11 @@ export default function App() {
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
+  const [managedCategories, setManagedCategories] = useState<string[]>(() => {
+    try { const c = JSON.parse(localStorage.getItem("local_categories") || "[]"); return c.length > 0 ? c.map((x: any) => x.name || x) : []; } catch { return []; }
+  });
+  const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const [showColorForm, setShowColorForm] = useState(false);
 
   const [form, setForm] = useState({
     name: "", email: "", phone: "", address: "", delivery: "retirada" as "retirada" | "frete", notes: "",
@@ -73,7 +79,16 @@ export default function App() {
     }).catch(() => {});
   }
 
-  useEffect(() => { loadProducts(); loadColors(); }, []);
+  function loadCategories() {
+    const saved = JSON.parse(localStorage.getItem("local_categories") || "[]");
+    if (saved.length > 0) {
+      setManagedCategories(saved.map((x: any) => x.name || x));
+    } else {
+      setManagedCategories(["Organizadores", "Utilitários", "Acessórios", "Decoração"]);
+    }
+  }
+
+  useEffect(() => { loadProducts(); loadColors(); loadCategories(); }, []);
 
   const categories = [...new Set(products.map((p) => p.category).filter(Boolean))] as string[];
 
@@ -133,7 +148,7 @@ export default function App() {
   // ─── Admin CRUD ───
   async function handleSaveProduct(data: ProductFormData) {
     setSavingProduct(true);
-    const p = { ...data, model_number: "1.0" };
+    const p = { ...data, model_number: "1.0", description: data.description || "" };
     try {
       if (editingProduct) {
         const { error } = await supabase.from("products").update(p).eq("sku", data.sku);
@@ -331,13 +346,19 @@ export default function App() {
                   </div>
 
                   {admin && (
-                    <div className="mb-4">
-                      <button
-                        onClick={() => { setEditingProduct(null); setShowProductForm(true); }}
-                        className="btn-primary rounded-xl px-4 py-2 text-xs inline-flex items-center gap-1.5"
-                      >
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      <button onClick={() => { setEditingProduct(null); setShowProductForm(true); }}
+                        className="btn-primary rounded-xl px-4 py-2 text-xs inline-flex items-center gap-1.5">
                         <PlusIcon className="h-3.5 w-3.5" />
-                        <span>Adicionar Produto</span>
+                        <span>Produto</span>
+                      </button>
+                      <button onClick={() => setShowCategoryForm(true)}
+                        className="rounded-xl border border-[#404040] bg-[#242424] px-4 py-2 text-xs text-[#a3a3a3] hover:text-[#f5f5f5] inline-flex items-center gap-1.5 transition-colors">
+                        <span>Categorias</span>
+                      </button>
+                      <button onClick={() => setShowColorForm(true)}
+                        className="rounded-xl border border-[#404040] bg-[#242424] px-4 py-2 text-xs text-[#a3a3a3] hover:text-[#f5f5f5] inline-flex items-center gap-1.5 transition-colors">
+                        <span>Cores</span>
                       </button>
                     </div>
                   )}
@@ -411,6 +432,9 @@ export default function App() {
                             <span className="text-xs text-[#737373] font-medium">{p.color.name}</span>
                           </div>
                           <h3 className="font-semibold text-[#f5f5f5] text-base leading-snug">{p.name}</h3>
+                          {p.description && (
+                            <p className="mt-1 text-xs text-[#737373] leading-relaxed line-clamp-2">{p.description}</p>
+                          )}
 
                           <div className="mt-3 flex items-center justify-between">
                             <span className="text-xl font-extrabold gradient-text">{formatPrice(p.price)}</span>
@@ -695,10 +719,14 @@ export default function App() {
         <ProductForm
           product={editingProduct || undefined}
           colors={colors.length > 0 ? colors : FALLBACK_PRODUCTS.map((p) => p.color).filter((c, i, a) => a.findIndex((x) => x.id === c.id) === i)}
+          categories={managedCategories.length > 0 ? managedCategories : ["Organizadores", "Utilitários", "Acessórios", "Decoração"]}
           onSubmit={handleSaveProduct}
           onCancel={() => { setShowProductForm(false); setEditingProduct(null); }}
         />
       </Modal>
+
+      <CategoryColorForm type="category" open={showCategoryForm} onClose={() => { setShowCategoryForm(false); loadCategories(); }} />
+      <CategoryColorForm type="color" open={showColorForm} onClose={() => { setShowColorForm(false); loadColors(); }} />
 
       <Modal open={!!deletingProduct} onClose={() => setDeletingProduct(null)} title="Excluir Produto">
         {deletingProduct && (

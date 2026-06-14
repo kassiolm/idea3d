@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS products (
   price DECIMAL(10,2) NOT NULL,
   stock INTEGER DEFAULT 0,
   image TEXT,
+  description TEXT DEFAULT '',
   category TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -45,6 +46,9 @@ CREATE TABLE IF NOT EXISTS order_items (
   quantity INTEGER NOT NULL,
   unit_price DECIMAL(10,2) NOT NULL
 );
+
+-- Adicionar coluna description em tabelas existentes
+ALTER TABLE products ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
 
 -- Função para abater estoque
 CREATE OR REPLACE FUNCTION decrement_stock(sku_param TEXT, qty INTEGER)

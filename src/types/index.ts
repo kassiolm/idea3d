@@ -8,6 +8,7 @@ export interface Product {
   id: number;
   sku: string;
   name: string;
+  description?: string;
   model_number: string;
   color_id: number;
   price: number;
@@ -42,6 +43,7 @@ export interface Order {
 export interface ProductFormData {
   sku: string;
   name: string;
+  description?: string;
   category: string;
   price: number;
   stock: number;
