@@ -287,7 +287,7 @@ export default function App() {
                   <img
                     src={`${BASE}logo.png`}
                     alt="IdeaShop3D"
-                    className="w-48 h-48 sm:w-64 sm:h-64 object-contain drop-shadow-2xl"
+                    className="w-64 h-64 sm:w-80 sm:h-80 object-contain drop-shadow-2xl"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#f97316]/10 to-transparent rounded-full blur-2xl -z-10" />
                 </div>
