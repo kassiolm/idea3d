@@ -51,26 +51,16 @@ export default function ProductForm({ product, colors, categories, products = []
   function initVariants(): ProductVariant[] {
     if (product?.variants) {
       return product.variants.map((v) => {
-        const cols = v.colors?.length ? v.colors : [colorEntry(colors.find((c) => c.id === v.colorId) || colors.find((c) => c.name === v.colorName) || colors[0] || { id: 0, name: "", code: "", hex: "#e5e7eb" })];
-        const match = colors.find((c) => c.id === v.colorId) || colors.find((c) => c.name === v.colorName);
-        const c0 = match || colors[0] || { id: 0, name: "", code: "", hex: "#e5e7eb" };
+        const c0 = colors.find((c) => c.id === v.colorId) || colors.find((c) => c.name === v.colorName) || colors[0] || { id: 0, name: "", code: "", hex: "#e5e7eb" };
+        const hexes = (c0 as any).hexes as string[] | undefined;
+        const cols = v.colors?.length ? v.colors : (hexes?.length ? hexes.map((hex) => ({ id: c0.id, name: c0.name, hex })) : [colorEntry(c0)]);
         return { ...v, colorId: c0.id, colorName: c0.name, colorCode: c0.code, colorHex: (c0 as any).hex, colors: cols, images: v.images || (v.image ? [v.image] : []) };
       });
     }
-    return [buildVariantFromSequence(0)];
-  }
-
-  function buildVariantFromSequence(startIdx: number): ProductVariant {
-    const c0 = colors[startIdx] || colors[0] || { id: 1, name: "", code: "", hex: "" };
-    const cols = [colorEntry(c0)];
-    const c1 = colors[startIdx + 1];
-    if (c1) cols.push(colorEntry(c1));
-    const c2 = colors[startIdx + 2];
-    if (c2) cols.push(colorEntry(c2));
-    return {
-      colorId: c0.id, colorName: c0.name, colorCode: c0.code, colorHex: (c0 as any).hex,
-      colors: cols, stock: 0, image: null, images: [],
-    };
+    const first = colors[0] || { id: 0, name: "", code: "", hex: "#e5e7eb" };
+    const hexes = (first as any).hexes as string[] | undefined;
+    const cols = hexes?.length ? hexes.map((hex) => ({ id: first.id, name: first.name, hex })) : [colorEntry(first)];
+    return [{ colorId: first.id, colorName: first.name, colorCode: first.code, colorHex: (first as any).hex, colors: cols, stock: 0, image: null, images: [] }];
   }
   const [variants, setVariants] = useState<ProductVariant[]>(initVariants);
   const [error, setError] = useState("");
@@ -84,53 +74,32 @@ export default function ProductForm({ product, colors, categories, products = []
   }, [name, product, products, sku]);
 
   function addVariant() {
-    const nextIdx = variants.length;
-    setVariants([...variants, buildVariantFromSequence(nextIdx)]);
+    const usedIds = new Set(variants.map((v) => v.colorId));
+    const next = colors.find((c) => !usedIds.has(c.id)) || colors[0];
+    if (!next) return;
+    const hexes = (next as any).hexes as string[] | undefined;
+    const cols = hexes?.length ? hexes.map((hex) => ({ id: next.id, name: next.name, hex })) : [colorEntry(next)];
+    setVariants([...variants, { colorId: next.id, colorName: next.name, colorCode: next.code, colorHex: (next as any).hex, colors: cols, stock: 0, image: null, images: [] }]);
   }
 
   function syncVariant(v: ProductVariant): ProductVariant {
     const c0 = v.colors?.[0];
     if (c0) {
       const match = colors.find((co) => co.id === c0.id);
-      return { ...v, colorId: c0.id, colorName: c0.name, colorCode: match?.code || "", colorHex: c0.hex };
+      return { ...v, colorId: c0.id, colorName: c0.name, colorCode: match?.code || "", colorHex: (match as any)?.hex || c0.hex };
     }
     return v;
   }
 
-  function updateVariantColor(i: number, slotIdx: number, colorId: number) {
+  function updateVariantColor(i: number, colorId: number) {
     const next = [...variants];
-    const cols = [...(next[i].colors || [])];
-    if (colorId === NONE) {
-      cols.splice(slotIdx, 1);
-    } else {
-      const c = colors.find((co) => co.id === colorId);
-      if (c) {
-        if (slotIdx < cols.length) cols[slotIdx] = colorEntry(c);
-        else cols.push(colorEntry(c));
-        if (slotIdx === 0) autoFillSlots(cols, colorId);
-      }
-    }
-    if (!cols.length) {
-      const c = colors[0];
-      cols.push(colorEntry(c || { id: 0, name: "", code: "", hex: "#e5e7eb" }));
-    }
-    next[i] = syncVariant({ ...next[i], colors: cols });
+    const c = colors.find((co) => co.id === colorId) || colors[0];
+    const hexes = (c as any).hexes as string[] | undefined;
+    const cols = hexes?.length
+      ? hexes.map((hex) => ({ id: c.id, name: c.name, hex }))
+      : [{ id: c.id, name: c.name, hex: (c as any).hex || "#e5e7eb" }];
+    next[i] = syncVariant({ ...next[i], colorId: c.id, colorName: c.name, colorCode: c.code, colorHex: (c as any).hex, colors: cols });
     setVariants(next);
-  }
-
-  function autoFillSlots(cols: { id: number; name: string; hex: string }[], colorId: number) {
-    const idx = colors.findIndex((co) => co.id === colorId);
-    if (idx < 0) return;
-    const n1 = colors[idx + 1];
-    if (n1) {
-      if (cols.length < 2) cols.push(colorEntry(n1));
-      else cols[1] = colorEntry(n1);
-    }
-    const n2 = colors[idx + 2];
-    if (n2) {
-      if (cols.length < 3) cols.push(colorEntry(n2));
-      else cols[2] = colorEntry(n2);
-    }
   }
 
   function updateVariant(i: number, field: string, value: any) {
@@ -189,13 +158,11 @@ export default function ProductForm({ product, colors, categories, products = []
     });
   }
 
-  function slotSelect(i: number, slotIdx: number) {
+  function variantColorSelect(i: number) {
     const v = variants[i];
-    const entry = v.colors?.[slotIdx];
     return (
-      <select value={entry ? entry.id : NONE} onChange={(e) => updateVariantColor(i, slotIdx, parseFloat(e.target.value))}
+      <select value={v.colorId} onChange={(e) => updateVariantColor(i, parseFloat(e.target.value))}
         className="w-full rounded-lg border border-[#404040] bg-[#1a1a1a] px-2 py-1.5 text-xs text-[#f5f5f5] outline-none">
-        {slotIdx > 0 && <option value={NONE}>Nenhuma</option>}
         {colors.map((c) => (
           <option key={c.id} value={c.id}>{c.name} ({(c as any).code}){(c as any).hex && ` ●`}</option>
         ))}
@@ -270,18 +237,10 @@ export default function ProductForm({ product, colors, categories, products = []
                   </button>
                 )}
               </div>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <span className="text-[10px] text-[#737373] block mb-0.5">Cor 1</span>
-                  {slotSelect(i, 0)}
-                </div>
-                <div>
-                  <span className="text-[10px] text-[#737373] block mb-0.5">Cor 2</span>
-                  {slotSelect(i, 1)}
-                </div>
-                <div>
-                  <span className="text-[10px] text-[#737373] block mb-0.5">Cor 3</span>
-                  {slotSelect(i, 2)}
+                  <span className="text-[10px] text-[#737373] block mb-0.5">Cor</span>
+                  {variantColorSelect(i)}
                 </div>
                 <div>
                   <span className="text-[10px] text-[#737373] block mb-0.5">Estoque</span>
