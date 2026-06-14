@@ -481,14 +481,14 @@ export default function App() {
                 <div className="flex-1 text-center sm:text-left">
                   <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full category-badge text-xs font-semibold mb-4">
                     <Sparkles className="h-3.5 w-3.5" />
-                    Feito com PLA Premium
+                    Fabricados com filamentos de alta qualidade.
                   </div>
                   <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#f5f5f5] leading-tight mb-4">
                     Transformamos <br />
                     <span className="gradient-text">ideias em 3D</span>
                   </h1>
                   <p className="text-[#a3a3a3] text-base sm:text-lg max-w-md leading-relaxed">
-                    Produtos exclusivos impressos em 3D com PLA de alta qualidade. Organizadores, acessórios e decoração para o seu dia a dia.
+                    Produtos exclusivos fabricados com filamentos de alta qualidade. Organizadores, acessórios e decoração para o seu dia a dia.
                   </p>
                   <div className="flex items-center gap-4 mt-6 justify-center sm:justify-start">
                     <a href="#products" className="btn-primary rounded-xl px-6 py-3 text-sm inline-flex items-center gap-2">
