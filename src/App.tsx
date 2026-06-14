@@ -283,15 +283,13 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="relative flex-shrink-0">
-                  <div className="w-[150px] h-[150px] sm:w-[180px] sm:h-[180px] relative animate-float">
-                    <img
-                      src={`${BASE}logo.png`}
-                      alt="IdeaShop3D"
-                      className="w-full h-full object-contain drop-shadow-2xl"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#f97316]/10 to-transparent rounded-full blur-2xl -z-10" />
-                  </div>
+                <div className="relative flex-shrink-0 animate-float">
+                  <img
+                    src={`${BASE}logo.png`}
+                    alt="IdeaShop3D"
+                    className="w-48 h-48 sm:w-64 sm:h-64 object-contain drop-shadow-2xl"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#f97316]/10 to-transparent rounded-full blur-2xl -z-10" />
                 </div>
               </div>
             </section>
