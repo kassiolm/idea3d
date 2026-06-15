@@ -1,12 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-
-function toImageUrl(url: string | null | undefined): string {
-  if (!url) return "";
-  const match = url.match(/\/file\/d\/([^/]+)/);
-  if (match) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w800`;
-  return url;
-}
+import { toImageUrl } from "../../lib/images";
 
 interface Props {
   images: (string | null | undefined)[];

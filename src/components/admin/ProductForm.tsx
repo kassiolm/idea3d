@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, X, ImageUp } from "lucide-react";
 import type { Product, Color, ProductVariant } from "../../types";
+import { toImageUrl } from "../../lib/images";
+import { supabase } from "../../lib/supabase";
 
 interface Props {
   product?: Product;
@@ -26,13 +28,6 @@ function nextNumber(initials: string, existing: Product[]): string {
   const max = existing.map((p) => p.sku?.match(re)).filter(Boolean).map((m) => parseInt(m![1], 10))
     .reduce((a, b) => Math.max(a, b), 0);
   return String(max + 1).padStart(2, "0");
-}
-
-function toImageUrl(url: string | null | undefined): string {
-  if (!url) return "";
-  const match = url.match(/\/file\/d\/([^/]+)/);
-  if (match) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w800`;
-  return url;
 }
 
 function makeid() { return Date.now() + Math.random(); }
@@ -132,6 +127,43 @@ export default function ProductForm({ product, colors, categories, products = []
   function removeVariant(i: number) {
     if (variants.length <= 1) return;
     setVariants(variants.filter((_, idx) => idx !== i));
+  }
+
+  function toBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+    return new Promise((resolve) => canvas.toBlob((b) => resolve(b!), "image/webp", 0.8));
+  }
+
+  async function handleFileSelect(i: number, imgIdx: number, file: File) {
+    const img = new Image();
+    img.onload = async () => {
+      const maxW = 800;
+      const scale = Math.min(1, maxW / img.width);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, w, h);
+
+      const blob = await toBlob(canvas);
+      const dataUrl = canvas.toDataURL("image/webp", 0.8);
+
+      let url = dataUrl;
+      if (supabase) {
+        try {
+          const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
+          const { error } = await supabase.storage.from("product-images").upload(fileName, blob, { contentType: "image/webp" });
+          if (!error) {
+            const { data: { publicUrl } } = supabase.storage.from("product-images").getPublicUrl(fileName);
+            url = publicUrl;
+          }
+        } catch {}
+      }
+      setVariantImage(i, imgIdx, url);
+    };
+    const reader = new FileReader();
+    reader.onload = (e) => { img.src = e.target?.result as string; };
+    reader.readAsDataURL(file);
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -259,7 +291,15 @@ export default function ProductForm({ product, colors, categories, products = []
                 {(v.images || []).map((img, imgIdx) => (
                   <div key={imgIdx} className="flex gap-1.5 mb-1.5">
                     <input value={img} onChange={(e) => setVariantImage(i, imgIdx, e.target.value)}
-                      placeholder={`URL ${imgIdx + 1}`} className="w-full rounded-lg border border-[#404040] bg-[#1a1a1a] px-2 py-1.5 text-xs text-[#f5f5f5] placeholder-[#525252] outline-none" />
+                      placeholder={`URL ou Upload ${imgIdx + 1}`}
+                      className="w-full rounded-lg border border-[#404040] bg-[#1a1a1a] px-2 py-1.5 text-xs text-[#f5f5f5] placeholder-[#525252] outline-none" />
+                    <label className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#404040] text-[#737373] hover:text-[#f97316] hover:border-[#f97316]/50 cursor-pointer transition-colors" title="Selecionar arquivo">
+                      <ImageUp className="h-3.5 w-3.5" />
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) { handleFileSelect(i, imgIdx, file); e.target.value = ""; }
+                      }} />
+                    </label>
                     {(v.images?.length || 0) > 1 && (
                       <button type="button" onClick={() => removeVariantImage(i, imgIdx)}
                         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#404040] text-[#737373] hover:text-[#ef4444] transition-colors">

@@ -10,7 +10,8 @@ import ProductForm from "./components/admin/ProductForm";
 import DeleteConfirm from "./components/admin/DeleteConfirm";
 import CategoryColorForm from "./components/admin/CategoryColorForm";
 import ImageSlider from "./components/ui/ImageSlider";
-import { fetchProducts, saveProduct as dbSaveProduct, deleteProduct as dbDeleteProduct, fetchColors, saveColors as dbSaveColors, fetchCategories, saveCategories as dbSaveCategories, fetchMaterials, saveMaterials as dbSaveMaterials, getOrders, saveOrder as dbSaveOrder, updateOrders as dbUpdateOrders } from "./lib/db";
+import { toImageUrl } from "./lib/images";
+import { fetchProducts, saveProduct as dbSaveProduct, deleteProduct as dbDeleteProduct, fetchColors, saveColors as dbSaveColors, fetchCategories, saveCategories as dbSaveCategories, fetchMaterials, saveMaterials as dbSaveMaterials, getOrders, saveOrder as dbSaveOrder, updateOrders as dbUpdateOrders, decrementStock, incrementStock } from "./lib/db";
 
 let managedHexMap: Record<string, string> = {};
 
@@ -30,13 +31,6 @@ function colorDot(c: { hex?: string; hexes?: string[] } | undefined, fb = "#e5e7
     return { background: `conic-gradient(${stops})` };
   }
   return { background: c?.hex || fb };
-}
-
-function toImageUrl(url: string | null | undefined): string {
-  if (!url) return "";
-  const match = url.match(/\/file\/d\/([^/]+)/);
-  if (match) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w800`;
-  return url;
 }
 
 function getColorHex(name: string, fallback = "#e5e7eb"): string {
@@ -127,6 +121,11 @@ export default function App() {
     const order = { id: orderId, ...form, items: cart.items, total: cart.total, date: new Date().toISOString(), status: "pending" };
     await dbSaveOrder(order);
 
+    for (const item of cart.items) {
+      await decrementStock(item.sku, item.quantity);
+    }
+    await loadProducts();
+
     if (import.meta.env.VITE_WEBHOOK_URL) {
       fetch(import.meta.env.VITE_WEBHOOK_URL, {
         method: "POST",
@@ -182,8 +181,17 @@ export default function App() {
   }
 
   async function toggleOrderStatus(order: any) {
-    const updated = orders.map((o: any) => o.id === order.id ? { ...o, status: o.status === "completed" ? "pending" : "completed" } : o);
+    const isCompleting = order.status !== "completed";
+    const updated = orders.map((o: any) => o.id === order.id ? { ...o, status: isCompleting ? "completed" : "pending" } : o);
     await saveOrders(updated);
+    for (const item of order.items) {
+      if (isCompleting) {
+        await decrementStock(item.sku, item.quantity);
+      } else {
+        await incrementStock(item.sku, item.quantity);
+      }
+    }
+    await loadProducts();
   }
 
   async function deleteOrder(order: any) {

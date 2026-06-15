@@ -1,13 +1,6 @@
 import { supabase } from "./supabase";
 import type { Product, Color } from "../types";
 
-function toImageUrl(url: string | null | undefined): string {
-  if (!url) return "";
-  const match = url.match(/\/file\/d\/([^/]+)/);
-  if (match) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w800`;
-  return url;
-}
-
 // ─── Products ───
 
 export async function fetchProducts(): Promise<Product[]> {
@@ -87,6 +80,27 @@ export async function saveMaterials(names: string[]): Promise<void> {
   await supabase.from("materials").delete().neq("id", -1);
   if (names.length) {
     await supabase.from("materials").insert(names.map((n) => ({ id: Date.now() + Math.random(), name: n })));
+  }
+}
+
+// ─── Stock ───
+
+export async function decrementStock(sku: string, qty: number): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase.rpc("decrement_stock", { sku_param: sku, qty });
+  if (error) {
+    const { data } = await supabase.from("products").select("stock").eq("sku", sku).single();
+    if (data && data.stock >= qty) {
+      await supabase.from("products").update({ stock: data.stock - qty }).eq("sku", sku);
+    }
+  }
+}
+
+export async function incrementStock(sku: string, qty: number): Promise<void> {
+  if (!supabase) return;
+  const { data } = await supabase.from("products").select("stock").eq("sku", sku).single();
+  if (data) {
+    await supabase.from("products").update({ stock: data.stock + qty }).eq("sku", sku);
   }
 }
 

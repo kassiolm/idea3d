@@ -124,3 +124,26 @@ CREATE POLICY "pedidos_select_anon" ON orders FOR SELECT TO anon USING (true);
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "itens_insert_anon" ON order_items;
 CREATE POLICY "itens_insert_anon" ON order_items FOR INSERT TO anon WITH CHECK (true);
+
+-- ═══════════════════════════════════════════════
+-- Storage: bucket para upload de imagens
+-- ═══════════════════════════════════════════════
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('product-images', 'product-images', true)
+ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "product_images_select_anon" ON storage.objects;
+CREATE POLICY "product_images_select_anon" ON storage.objects
+  FOR SELECT TO anon USING (bucket_id = 'product-images');
+
+DROP POLICY IF EXISTS "product_images_insert_anon" ON storage.objects;
+CREATE POLICY "product_images_insert_anon" ON storage.objects
+  FOR INSERT TO anon WITH CHECK (bucket_id = 'product-images');
+
+DROP POLICY IF EXISTS "product_images_update_anon" ON storage.objects;
+CREATE POLICY "product_images_update_anon" ON storage.objects
+  FOR UPDATE TO anon USING (bucket_id = 'product-images');
+
+DROP POLICY IF EXISTS "product_images_delete_anon" ON storage.objects;
+CREATE POLICY "product_images_delete_anon" ON storage.objects
+  FOR DELETE TO anon USING (bucket_id = 'product-images');
